@@ -1,0 +1,14 @@
+site:
+  title: "Chess"
+
+server:
+  files:
+    dev:
+      contentRoot: "build/processedResources/js/main/public"
+      script: "build/kotlin-webpack/js/developmentExecutable/chess.js"
+      api: "build/libs/chess.jar"
+    prod:
+      script: "build/kotlin-webpack/js/productionExecutable/chess.js"
+      siteRoot: ".kobweb/site"
+
+  port: 8080
