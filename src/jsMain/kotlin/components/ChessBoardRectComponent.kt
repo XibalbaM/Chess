@@ -18,10 +18,11 @@ const val SQUARE_SIZE = 50
 const val SQUARE_SIZE_D = SQUARE_SIZE.toDouble()
 
 @Composable
-fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = ChessPieceColor.WHITE) {
+fun ChessBoardRectComponent(board: ChessBoardRect, renderingPoV: ChessPieceColor = ChessPieceColor.WHITE) {
     var board by remember { mutableStateOf(board) }
     val pieces by remember { mutableStateOf(board.getPieces()) }
     var focusedPiece by remember { mutableStateOf<ChessPositionRect?>(null) }
+    var turn by remember { mutableStateOf(ChessPieceColor.WHITE) }
     val repainter = remember { CanvasRepainter() }
     Canvas2d(
         width = SQUARE_SIZE * board.width,
@@ -29,13 +30,13 @@ fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = Ches
         repainter = repainter,
         modifier = Modifier.onClick { repainter.repaint() }) {
         ctx.clearRect(0.0, 0.0, SQUARE_SIZE_D * board.width, SQUARE_SIZE_D * board.height)
-        chessBoardRectBgComponent(board.width, board.height, focusedPiece?.verticalSymmetryIfWhite(board.height, color), color)
+        chessBoardRectBgComponent(board.width, board.height, focusedPiece?.verticalSymmetryIfWhite(board.height, renderingPoV), renderingPoV)
     }
     for (piece in pieces) {
         val callback = remember<(SyntheticMouseEvent) -> Unit> {
             {
                 println("Clicked on piece ${board.getPosition(piece)}")
-                focusedPiece = if (focusedPiece == board.getPosition(piece)) {
+                focusedPiece = if (piece.color != turn || focusedPiece == board.getPosition(piece)) {
                     null
                 } else {
                     board.getPosition(piece)
@@ -43,12 +44,13 @@ fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = Ches
                 repainter.repaint()
             }
         }
-        PieceComponent(piece, board.getPosition(piece)?.verticalSymmetryIfWhite(board.height, color), callback)
+        PieceComponent(piece, board.getPosition(piece)?.verticalSymmetryIfWhite(board.height, renderingPoV), callback)
     }
-    PieceMovesComponent(board, color, focusedPiece) {
+    PieceMovesComponent(board, renderingPoV, focusedPiece, turn) {
         repainter.repaint()
         focusedPiece = null
         board = it
+        turn = turn.opposite()
     }
 }
 
@@ -104,16 +106,20 @@ private fun PieceComponent(piece: ChessPiece<ChessPositionRect>, position: Chess
 @Composable
 private fun PieceMovesComponent(
     board: ChessBoardRect,
-    color: ChessPieceColor,
+    renderingPoV: ChessPieceColor,
     focusedPiecePosition: ChessPositionRect?,
+    turn: ChessPieceColor,
     update: (board: ChessBoardRect) -> Unit
 ) {
     println("Drawing moves")
     if (focusedPiecePosition != null) {
         val piece = board.getPieceAt(focusedPiecePosition)!!
+        if (piece.color != turn) {
+            return
+        }
         val moves = piece.getMoves(focusedPiecePosition, board).flatMap { move -> move.getTargetPosition().map { move to it } }
         for ((move, target) in moves) {
-            val pos = target.second.verticalSymmetryIfWhite(board.height, color)
+            val pos = target.second.verticalSymmetryIfWhite(board.height, renderingPoV)
             val x = pos.x * SQUARE_SIZE
             val y = pos.y * SQUARE_SIZE
             Box(Modifier.translate(x.px, y.px).width(SQUARE_SIZE.px).height(SQUARE_SIZE.px).onClick { update(move.execute(board) as ChessBoardRect) }) {
