@@ -9,12 +9,7 @@ import com.varabyte.kobweb.compose.ui.modifiers.onClick
 import com.varabyte.kobweb.compose.ui.modifiers.translate
 import com.varabyte.kobweb.compose.ui.modifiers.width
 import com.varabyte.kobweb.silk.components.graphics.*
-import fr.xibalba.chess.data.ChessBoardRect
-import fr.xibalba.chess.data.ChessMoveTypes
-import fr.xibalba.chess.data.ChessPiece
-import fr.xibalba.chess.data.ChessPieceColor
-import fr.xibalba.chess.data.ChessPosition
-import fr.xibalba.chess.data.ChessPositionRect
+import fr.xibalba.chess.data.*
 import org.jetbrains.compose.web.css.px
 import org.w3c.dom.CanvasRenderingContext2D
 import kotlin.math.PI
@@ -25,7 +20,7 @@ const val SQUARE_SIZE_D = SQUARE_SIZE.toDouble()
 @Composable
 fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = ChessPieceColor.WHITE) {
     var board by remember { mutableStateOf(board) }
-    var pieces by remember { mutableStateOf(board.getPieces()) }
+    val pieces by remember { mutableStateOf(board.getPieces()) }
     var focusedPiece by remember { mutableStateOf<ChessPositionRect?>(null) }
     val repainter = remember { CanvasRepainter() }
     Canvas2d(
@@ -48,7 +43,7 @@ fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = Ches
                 repainter.repaint()
             }
         }
-        PieceComponent(piece, board.getPosition(piece)!!.verticalSymmetryIfWhite(board.height, color), color, callback)
+        PieceComponent(piece, board.getPosition(piece)?.verticalSymmetryIfWhite(board.height, color), callback)
     }
     PieceMovesComponent(board, color, focusedPiece) {
         repainter.repaint()
@@ -91,7 +86,10 @@ private fun RenderScope<CanvasRenderingContext2D>.chessBoardRectBgComponent(widt
 }
 
 @Composable
-private fun PieceComponent(piece: ChessPiece<ChessPositionRect>, position: ChessPositionRect, color: ChessPieceColor, onClick: (SyntheticMouseEvent) -> Unit) {
+private fun PieceComponent(piece: ChessPiece<ChessPositionRect>, position: ChessPositionRect?, onClick: (SyntheticMouseEvent) -> Unit) {
+    if (position == null) {
+        return
+    }
     println("Drawing piece " + piece.color + piece.type.name)
     val x = position.x * SQUARE_SIZE
     val y = position.y * SQUARE_SIZE
@@ -104,7 +102,12 @@ private fun PieceComponent(piece: ChessPiece<ChessPositionRect>, position: Chess
 }
 
 @Composable
-private fun PieceMovesComponent(board: ChessBoardRect, color: ChessPieceColor, focusedPiecePosition: ChessPositionRect?, update: (board: ChessBoardRect) -> Unit) {
+private fun PieceMovesComponent(
+    board: ChessBoardRect,
+    color: ChessPieceColor,
+    focusedPiecePosition: ChessPositionRect?,
+    update: (board: ChessBoardRect) -> Unit
+) {
     println("Drawing moves")
     if (focusedPiecePosition != null) {
         val piece = board.getPieceAt(focusedPiecePosition)!!
@@ -113,20 +116,24 @@ private fun PieceMovesComponent(board: ChessBoardRect, color: ChessPieceColor, f
             val pos = target.second.verticalSymmetryIfWhite(board.height, color)
             val x = pos.x * SQUARE_SIZE
             val y = pos.y * SQUARE_SIZE
-            when (target.first) {
-                ChessMoveTypes.MOVE -> {
-                    Box(Modifier.translate(x.px, y.px).width(SQUARE_SIZE.px).height(SQUARE_SIZE.px).onClick { update(move.execute(board) as ChessBoardRect) }) {
-                        Canvas2d(width = SQUARE_SIZE, height = SQUARE_SIZE, minDeltaMs = REPAINT_CANVAS_MANUALLY) {
+            Box(Modifier.translate(x.px, y.px).width(SQUARE_SIZE.px).height(SQUARE_SIZE.px).onClick { update(move.execute(board) as ChessBoardRect) }) {
+                Canvas2d(width = SQUARE_SIZE, height = SQUARE_SIZE, minDeltaMs = REPAINT_CANVAS_MANUALLY) {
+                    when (target.first) {
+                        ChessMoveTypes.MOVE -> {
                             ctx.fillStyle = "rgba(0, 0, 0, 0.1)"
                             ctx.beginPath()
                             ctx.arc(SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 4, 0.0, 2 * PI)
                             ctx.fill()
                         }
+
+                        ChessMoveTypes.TAKE -> {
+                            ctx.beginPath()
+                            ctx.arc(SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 2, (SQUARE_SIZE_D - 5) / 2, 0.0, 2 * PI)
+                            ctx.lineWidth = 5.0
+                            ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"
+                            ctx.stroke()
+                        }
                     }
-                }
-
-                ChessMoveTypes.TAKE -> {
-
                 }
             }
         }
