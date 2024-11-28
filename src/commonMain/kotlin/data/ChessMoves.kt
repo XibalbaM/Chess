@@ -1,18 +1,19 @@
 package fr.xibalba.chess.data
 
+import androidx.compose.runtime.Immutable
 import kotlin.math.max
 
+@Immutable
 class ChessMoveSimple<T : ChessPosition>(val from: T, val to: T, val chessPiece: ChessPiece<T>, val type: ChessMoveTypes) : ChessMove<T> {
-    override fun execute(board: ChessBoard<T>) {
-        board.dumbMove(from, to)
+    override fun execute(board: ChessBoard<T>): ChessBoard<T>? {
+        val newBoard = board.dumbMove(from, to)
         chessPiece.type.doAfterMove(ChessMoveCallbackContext(board, chessPiece, this))
+        return newBoard
     }
 
     override fun toString(): String = "$from -> $to"
 }
 fun <T : ChessPosition> ChessMoveComputeFunctionContext<T>.move(to: T) {
-    println(position)
-    println(to)
     if (to != position && board.hasPosition(to) && board.getPieceAt(to) == null) {
         moves.add(ChessMoveSimple(position, to, piece, ChessMoveTypes.MOVE))
     }

@@ -11,8 +11,9 @@ import com.varabyte.kobweb.compose.ui.modifiers.width
 import com.varabyte.kobweb.silk.components.graphics.*
 import fr.xibalba.chess.data.ChessBoardRect
 import fr.xibalba.chess.data.ChessMoveTypes
+import fr.xibalba.chess.data.ChessPiece
 import fr.xibalba.chess.data.ChessPieceColor
-import fr.xibalba.chess.data.ChessPieceWithPosition
+import fr.xibalba.chess.data.ChessPosition
 import fr.xibalba.chess.data.ChessPositionRect
 import org.jetbrains.compose.web.css.px
 import org.w3c.dom.CanvasRenderingContext2D
@@ -23,6 +24,8 @@ const val SQUARE_SIZE_D = SQUARE_SIZE.toDouble()
 
 @Composable
 fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = ChessPieceColor.WHITE) {
+    var board by remember { mutableStateOf(board) }
+    var pieces by remember { mutableStateOf(board.getPieces()) }
     var focusedPiece by remember { mutableStateOf<ChessPositionRect?>(null) }
     val repainter = remember { CanvasRepainter() }
     Canvas2d(
@@ -33,23 +36,29 @@ fun ChessBoardRectComponent(board: ChessBoardRect, color: ChessPieceColor = Ches
         ctx.clearRect(0.0, 0.0, SQUARE_SIZE_D * board.width, SQUARE_SIZE_D * board.height)
         chessBoardRectBgComponent(board.width, board.height, focusedPiece?.verticalSymmetryIfWhite(board.height, color), color)
     }
-    for (pieceWithPositon in board.getPieces()) {
-        PieceComponent(pieceWithPositon, board.height, color) {
-            focusedPiece = if (focusedPiece == pieceWithPositon.position) {
-                null
-            } else {
-                pieceWithPositon.position
+    for (piece in pieces) {
+        val callback = remember<(SyntheticMouseEvent) -> Unit> {
+            {
+                println("Clicked on piece ${board.getPosition(piece)}")
+                focusedPiece = if (focusedPiece == board.getPosition(piece)) {
+                    null
+                } else {
+                    board.getPosition(piece)
+                }
+                repainter.repaint()
             }
-            repainter.repaint()
         }
+        PieceComponent(piece, board.getPosition(piece)!!.verticalSymmetryIfWhite(board.height, color), color, callback)
     }
     PieceMovesComponent(board, color, focusedPiece) {
         repainter.repaint()
         focusedPiece = null
+        board = it
     }
 }
 
 private fun RenderScope<CanvasRenderingContext2D>.chessBoardRectBgComponent(width: Int, height: Int, focusedPiece: ChessPositionRect?, color: ChessPieceColor) {
+    println("Drawing board")
     for (x in 0 until width) {
         for (y in 0 until height) {
             val color = if ((x + y) % 2 == if (color.isWhite) 0 else 1) {
@@ -82,9 +91,8 @@ private fun RenderScope<CanvasRenderingContext2D>.chessBoardRectBgComponent(widt
 }
 
 @Composable
-private fun PieceComponent(pieceWithPositon: ChessPieceWithPosition<ChessPositionRect>, height: Int, color: ChessPieceColor, onClick: (SyntheticMouseEvent) -> Unit) {
-    val piece = pieceWithPositon.piece
-    val position = pieceWithPositon.position.verticalSymmetryIfWhite(height, color)
+private fun PieceComponent(piece: ChessPiece<ChessPositionRect>, position: ChessPositionRect, color: ChessPieceColor, onClick: (SyntheticMouseEvent) -> Unit) {
+    println("Drawing piece " + piece.color + piece.type.name)
     val x = position.x * SQUARE_SIZE
     val y = position.y * SQUARE_SIZE
     val imagePath = "/pieces/${piece.color.toShortString()}${piece.type.name}.png"
@@ -96,7 +104,8 @@ private fun PieceComponent(pieceWithPositon: ChessPieceWithPosition<ChessPositio
 }
 
 @Composable
-private fun PieceMovesComponent(board: ChessBoardRect, color: ChessPieceColor, focusedPiecePosition: ChessPositionRect?, update: () -> Unit) {
+private fun PieceMovesComponent(board: ChessBoardRect, color: ChessPieceColor, focusedPiecePosition: ChessPositionRect?, update: (board: ChessBoardRect) -> Unit) {
+    println("Drawing moves")
     if (focusedPiecePosition != null) {
         val piece = board.getPieceAt(focusedPiecePosition)!!
         val moves = piece.getMoves(focusedPiecePosition, board).flatMap { move -> move.getTargetPosition().map { move to it } }
@@ -106,7 +115,7 @@ private fun PieceMovesComponent(board: ChessBoardRect, color: ChessPieceColor, f
             val y = pos.y * SQUARE_SIZE
             when (target.first) {
                 ChessMoveTypes.MOVE -> {
-                    Box(Modifier.translate(x.px, y.px).width(SQUARE_SIZE.px).height(SQUARE_SIZE.px).onClick { move.execute(board); update() }) {
+                    Box(Modifier.translate(x.px, y.px).width(SQUARE_SIZE.px).height(SQUARE_SIZE.px).onClick { update(move.execute(board) as ChessBoardRect) }) {
                         Canvas2d(width = SQUARE_SIZE, height = SQUARE_SIZE, minDeltaMs = REPAINT_CANVAS_MANUALLY) {
                             ctx.fillStyle = "rgba(0, 0, 0, 0.1)"
                             ctx.beginPath()

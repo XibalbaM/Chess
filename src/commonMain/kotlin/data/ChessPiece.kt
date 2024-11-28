@@ -1,14 +1,17 @@
 package fr.xibalba.chess.data
 
-data class ChessPiece<T : ChessPosition>(val color: ChessPieceColor, val type: ChessPieceType<T>, val data: Map<String, Any>) {
+import androidx.compose.runtime.Immutable
+
+@Immutable
+class ChessPiece<T : ChessPosition>(val color: ChessPieceColor, val type: ChessPieceType<T>) {
     fun getMoves(position: T, board: ChessBoard<T>): List<ChessMove<T>> {
         val context = ChessMoveComputeFunctionContext(board, this, position)
         type.listMoves(context)
         return context.build()
     }
 }
-data class ChessPieceWithPosition<T : ChessPosition>(val piece: ChessPiece<T>, val position: T)
 
+@Immutable
 value class ChessPieceColor(val isWhite: Boolean) {
     val isBlack get() = !isWhite
 
@@ -23,7 +26,8 @@ value class ChessPieceColor(val isWhite: Boolean) {
     }
 }
 
-data class ChessPieceType<T : ChessPosition>(val name: String, val listMoves: ChessMoveComputeFunction<T>, val doAfterMove: ChessMoveCallback<T> = {}) {
+@Immutable
+class ChessPieceType<T : ChessPosition>(val name: String, val listMoves: ChessMoveComputeFunction<T>, val doAfterMove: ChessMoveCallback<T> = {}) {
     companion object
 }
 typealias ChessPieceTypeRect = ChessPieceType<ChessPositionRect>
