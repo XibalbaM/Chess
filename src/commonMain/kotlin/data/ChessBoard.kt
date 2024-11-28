@@ -17,6 +17,9 @@ interface ChessBoard<T : ChessPosition> {
         println("Dumb move from $from to $to")
         val piece = getPieceAt(from)
         if (piece != null) {
+            if (ChessPiece.MEMORY[piece as ChessPiece<ChessPosition>]?.hasMoved == false) {
+                ChessPiece.MEMORY[piece as ChessPiece<ChessPosition>]?.hasMoved = true
+            }
             var newBoard = setPieceAt(from, null)
             newBoard = newBoard?.setPieceAt(to, piece)
             return newBoard
@@ -115,12 +118,12 @@ class ChessBoardRect(val width: Int, val height: Int, val pieces: List<List<Ches
 
 @Immutable
 interface ChessPosition {
-    fun verticalSymmetry(width: Int): ChessPosition
 
     override fun toString(): String
 }
 data class ChessPositionRect(val x: Int, val y: Int) : ChessPosition {
-    override fun verticalSymmetry(height: Int): ChessPositionRect = ChessPositionRect(x, height - y - 1)
+    fun verticalSymmetry(height: Int): ChessPositionRect = ChessPositionRect(x, height - y - 1)
+    fun horizontalSymmetry(width: Int): ChessPositionRect = ChessPositionRect(width - x - 1, y)
 
     override fun toString(): String = "($x, $y)"
 }

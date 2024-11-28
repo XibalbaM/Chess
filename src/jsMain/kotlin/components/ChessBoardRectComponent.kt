@@ -17,40 +17,41 @@ import kotlin.math.PI
 const val SQUARE_SIZE = 50
 const val SQUARE_SIZE_D = SQUARE_SIZE.toDouble()
 
+class GameState(val board: ChessBoardRect, val turn: ChessPieceColor)
+
 @Composable
-fun ChessBoardRectComponent(board: ChessBoardRect, renderingPoV: ChessPieceColor = ChessPieceColor.WHITE) {
-    var board by remember { mutableStateOf(board) }
-    val pieces by remember { mutableStateOf(board.getPieces()) }
+fun ChessBoardRectComponent(startingBoard: ChessBoardRect, gameStateListener: ((GameState) -> Unit)? = null, noTurn: Boolean = false) {
+    var gameState by remember { mutableStateOf(GameState(startingBoard, ChessPieceColor.WHITE)) }
+    val pieces by remember { mutableStateOf(startingBoard.getPieces()) }
     var focusedPiece by remember { mutableStateOf<ChessPositionRect?>(null) }
-    var turn by remember { mutableStateOf(ChessPieceColor.WHITE) }
     val repainter = remember { CanvasRepainter() }
     Canvas2d(
-        width = SQUARE_SIZE * board.width,
-        height = SQUARE_SIZE * board.height,
+        width = SQUARE_SIZE * gameState.board.width,
+        height = SQUARE_SIZE * gameState.board.height,
         repainter = repainter,
         modifier = Modifier.onClick { repainter.repaint() }) {
-        ctx.clearRect(0.0, 0.0, SQUARE_SIZE_D * board.width, SQUARE_SIZE_D * board.height)
-        chessBoardRectBgComponent(board.width, board.height, focusedPiece?.verticalSymmetryIfWhite(board.height, renderingPoV), renderingPoV)
+        ctx.clearRect(0.0, 0.0, SQUARE_SIZE_D * gameState.board.width, SQUARE_SIZE_D * gameState.board.height)
+        chessBoardRectBgComponent(gameState.board.width, gameState.board.height, focusedPiece?.symmetry(gameState.board.width, gameState.board.height, gameState.turn), gameState.turn)
     }
     for (piece in pieces) {
         val callback = remember<(SyntheticMouseEvent) -> Unit> {
             {
-                println("Clicked on piece ${board.getPosition(piece)}")
-                focusedPiece = if (piece.color != turn || focusedPiece == board.getPosition(piece)) {
+                println("Clicked on piece ${gameState.board.getPosition(piece)}")
+                focusedPiece = if (piece.color != gameState.turn || focusedPiece == gameState.board.getPosition(piece)) {
                     null
                 } else {
-                    board.getPosition(piece)
+                    gameState.board.getPosition(piece)
                 }
                 repainter.repaint()
             }
         }
-        PieceComponent(piece, board.getPosition(piece)?.verticalSymmetryIfWhite(board.height, renderingPoV), callback)
+        PieceComponent(piece, gameState.board.getPosition(piece)?.symmetry(gameState.board.width, gameState.board.height, gameState.turn), callback)
     }
-    PieceMovesComponent(board, renderingPoV, focusedPiece, turn) {
+    PieceMovesComponent(gameState.board, gameState.turn, focusedPiece) {
         repainter.repaint()
         focusedPiece = null
-        board = it
-        turn = turn.opposite()
+        gameState = GameState(it, if(noTurn) gameState.turn else gameState.turn.opposite())
+        gameStateListener?.invoke(gameState)
     }
 }
 
@@ -106,9 +107,8 @@ private fun PieceComponent(piece: ChessPiece<ChessPositionRect>, position: Chess
 @Composable
 private fun PieceMovesComponent(
     board: ChessBoardRect,
-    renderingPoV: ChessPieceColor,
-    focusedPiecePosition: ChessPositionRect?,
     turn: ChessPieceColor,
+    focusedPiecePosition: ChessPositionRect?,
     update: (board: ChessBoardRect) -> Unit
 ) {
     println("Drawing moves")
@@ -119,25 +119,28 @@ private fun PieceMovesComponent(
         }
         val moves = piece.getMoves(focusedPiecePosition, board).flatMap { move -> move.getTargetPosition().map { move to it } }
         for ((move, target) in moves) {
-            val pos = target.second.verticalSymmetryIfWhite(board.height, renderingPoV)
+            val pos = target.second.symmetry(board.width, board.height, turn)
             val x = pos.x * SQUARE_SIZE
             val y = pos.y * SQUARE_SIZE
             Box(Modifier.translate(x.px, y.px).width(SQUARE_SIZE.px).height(SQUARE_SIZE.px).onClick { update(move.execute(board) as ChessBoardRect) }) {
-                Canvas2d(width = SQUARE_SIZE, height = SQUARE_SIZE, minDeltaMs = REPAINT_CANVAS_MANUALLY) {
-                    when (target.first) {
-                        ChessMoveTypes.MOVE -> {
-                            ctx.fillStyle = "rgba(0, 0, 0, 0.1)"
-                            ctx.beginPath()
-                            ctx.arc(SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 4, 0.0, 2 * PI)
-                            ctx.fill()
-                        }
+                key("move-${target.first}-${pos}") {
+                    Canvas2d(width = SQUARE_SIZE, height = SQUARE_SIZE, minDeltaMs = REPAINT_CANVAS_MANUALLY) {
+                        ctx.clearRect(0.0, 0.0, SQUARE_SIZE_D, SQUARE_SIZE_D)
+                        when (target.first) {
+                            ChessMoveTypes.MOVE -> {
+                                ctx.fillStyle = "rgba(0, 0, 0, 0.1)"
+                                ctx.beginPath()
+                                ctx.arc(SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 4, 0.0, 2 * PI)
+                                ctx.fill()
+                            }
 
-                        ChessMoveTypes.TAKE -> {
-                            ctx.beginPath()
-                            ctx.arc(SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 2, (SQUARE_SIZE_D - 5) / 2, 0.0, 2 * PI)
-                            ctx.lineWidth = 5.0
-                            ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"
-                            ctx.stroke()
+                            ChessMoveTypes.TAKE -> {
+                                ctx.beginPath()
+                                ctx.arc(SQUARE_SIZE_D / 2, SQUARE_SIZE_D / 2, (SQUARE_SIZE_D - 5) / 2, 0.0, 2 * PI)
+                                ctx.lineWidth = 5.0
+                                ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"
+                                ctx.stroke()
+                            }
                         }
                     }
                 }
@@ -146,10 +149,10 @@ private fun PieceMovesComponent(
     }
 }
 
-private fun ChessPositionRect.verticalSymmetryIfWhite(height: Int, color: ChessPieceColor): ChessPositionRect {
+private fun ChessPositionRect.symmetry(width: Int, height: Int, color: ChessPieceColor): ChessPositionRect {
     return if (color.isWhite) {
         verticalSymmetry(height)
     } else {
-        this
+        horizontalSymmetry(width)
     }
 }

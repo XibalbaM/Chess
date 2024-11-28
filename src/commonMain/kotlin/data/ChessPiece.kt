@@ -4,10 +4,21 @@ import androidx.compose.runtime.Immutable
 
 @Immutable
 class ChessPiece<T : ChessPosition>(val color: ChessPieceColor, val type: ChessPieceType<T>) {
+
+    init {
+        if (type.memory != null) {
+            MEMORY[this as ChessPiece<ChessPosition>] = type.memory()
+        }
+    }
+
     fun getMoves(position: T, board: ChessBoard<T>): List<ChessMove<T>> {
         val context = ChessMoveComputeFunctionContext(board, this, position)
         type.listMoves(context)
         return context.build()
+    }
+
+    companion object {
+        val MEMORY = mutableMapOf<ChessPiece<ChessPosition>, ChessPieceMemory>()
     }
 }
 
@@ -27,7 +38,16 @@ value class ChessPieceColor(val isWhite: Boolean) {
 }
 
 @Immutable
-class ChessPieceType<T : ChessPosition>(val name: String, val listMoves: ChessMoveComputeFunction<T>, val doAfterMove: ChessMoveCallback<T> = {}) {
+class ChessPieceType<T : ChessPosition>(val name: String, val listMoves: ChessMoveComputeFunction<T>, val doAfterMove: ChessMoveCallback<T> = {}, val memory: ChessPieceMemoryGenerator? = null) {
     companion object
 }
 typealias ChessPieceTypeRect = ChessPieceType<ChessPositionRect>
+
+open class ChessPieceMemory {
+    var hasMoved = false
+
+    companion object {
+        val generator: ChessPieceMemoryGenerator = { ChessPieceMemory() }
+    }
+}
+typealias ChessPieceMemoryGenerator = () -> ChessPieceMemory
